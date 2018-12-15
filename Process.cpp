@@ -10,76 +10,81 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include<string.h>
+
+#define DOWNQUE 13572468
+#define UPQUE 24681357
+const long BORN_MTYPE = 1;
+
 using namespace std;
 struct msgbuff
 {
-   long mtype;
-   char mtext[65];//index 0 for operation type
+	long mtype;
+	char mtext[65];//index 0 for operation type
 };
-struct message{
-    int time;
-    char operation[3];
-    char message[64];
+struct message {
+	int time;
+	char operation[3];
+	char message[64];
 };
 
-int processClock=0;
-int id=getpid();
+int processClock = 0;
+int id = getpid();
 vector<message> input;
 
-void handleCLock(int signum){
-    processClock++;
-    
-}
-void readInput(char* inputFileName){
-    ifstream inputFile;
-    inputFile.open(inputFileName);
-    message temp;
-    while(!inputFile.eof()){
-        inputFile>>temp.time;
-        inputFile>>temp.operation;
-        inputFile>>temp.message;
-        input.push_back(temp);
-    }
-}
+void handleCLock(int signum) {
+	processClock++;
 
-int main(int argc,char*argv[]){
-    
-    signal (SIGUSR2, handleCLock);
-    int downQueue= msgget (  555, IPC_CREAT|0644 );
-	int upQueue=msgget( 666 ,IPC_CREAT|0644);
-	if(downQueue==-1|| upQueue==-1){
-		printf("Error in creating Queues");	
+}
+void readInput(char* inputFileName) {
+	ifstream inputFile;
+	inputFile.open(inputFileName);
+	message temp;
+	while (!inputFile.eof()) {
+		inputFile >> temp.time;
+		inputFile >> temp.operation;
+		inputFile >> temp.message;
+		input.push_back(temp);
 	}
-    //send my id to the kernel
-    msgbuff mess;
-    mess.mtype =1;
-    memcpy(mess.mtext,&id,sizeof(int));
-    msgsnd(upQueue,&mess,sizeof(mess.mtext),!IPC_NOWAIT);
-    
-    mess.mtype=id;
-    while(!input.empty()){
-        if(processClock>=input[0].time){
-            
-            if(input[0].operation=="ADD"){
-                mess.mtext[0]='A';
-                }
-            else {
-                mess.mtext[0]='D';
-            }
-            
-            strcpy(mess.mtext+1,input[0].message);
-            msgsnd(upQueue,&mess,sizeof(mess.mtext),!IPC_NOWAIT);
-            msgrcv(downQueue, &mess, sizeof(mess.mtext), mess.mtype, !IPC_NOWAIT);
-            
-            if(mess.mtext=="0")cout<<"Successfull add";
-            else if (mess.mtext=="1")cout<<"Successfull Delete";
-            else if(mess.mtext=="2")cout<<"unable to Add";
-            else if (mess.mtext=="3")cout<<"unable to delete";
-            input.erase(input.begin());
-        }
+}
 
+int main(int argc, char*argv[]) {
 
+	signal(SIGUSR2, handleCLock);
+	int downQueue = msgget(DOWNQUE, IPC_CREAT | 0644);
+	int upQueue = msgget(UPQUE, IPC_CREAT | 0644);
+	cout << "up queue id: " << upQueue << endl;
+	cout << "down queue id " << downQueue << endl;
+	if (downQueue == -1 || upQueue == -1) {
+		cout << "Error in creating Queues" << endl;
+		exit(-1);
+	}
+	//send my id to the kernel
+	msgbuff mess;
+	mess.mtype = BORN_MTYPE;
+	memcpy(mess.mtext, &id, sizeof(int));
+	msgsnd(upQueue, &mess, sizeof(mess.mtext), !IPC_NOWAIT);
 
-    }
+	mess.mtype = id;
+	while (!input.empty()) {
+		if (processClock >= input[0].time) {
+
+			if (input[0].operation == "ADD") {
+				mess.mtext[0] = 'A';
+			}
+			else {
+				mess.mtext[0] = 'D';
+			}
+
+			strcpy(mess.mtext + 1, input[0].message);
+			msgsnd(upQueue, &mess, sizeof(mess.mtext), !IPC_NOWAIT);
+			msgrcv(downQueue, &mess, sizeof(mess.mtext), mess.mtype, !IPC_NOWAIT);
+
+			if (mess.mtext == "0")cout << "Successfull add";
+			else if (mess.mtext == "1")cout << "Successfull Delete";
+			else if (mess.mtext == "2")cout << "unable to Add";
+			else if (mess.mtext == "3")cout << "unable to delete";
+			input.erase(input.begin());
+		}
+	}
 
 }
