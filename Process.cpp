@@ -13,13 +13,18 @@
 
 #define DOWNQUE 13572468
 #define UPQUE 24681357
+
+void setFakeInput();
+void sendDeadStatus();
+
 const long BORN_MTYPE = 1;
+const long DEAD_MTYPE = 5;
 
 using namespace std;
 struct msgbuff
 {
 	long mtype;
-	char mtext[65];//index 0 for operation type
+	char mtext[64];//index 0 for operation type
 };
 struct message {
 	int time;
@@ -48,7 +53,7 @@ void readInput(char* inputFileName) {
 }
 
 int main(int argc, char*argv[]) {
-
+	setFakeInput();
 	signal(SIGUSR2, handleCLock);
 	int downQueue = msgget(DOWNQUE, IPC_CREAT | 0644);
 	int upQueue = msgget(UPQUE, IPC_CREAT | 0644);
@@ -58,12 +63,16 @@ int main(int argc, char*argv[]) {
 		cout << "Error in creating Queues" << endl;
 		exit(-1);
 	}
+	
 	//send my id to the kernel
+	cout << "sending my id (" << id << ")..." << endl;
 	msgbuff mess;
 	mess.mtype = BORN_MTYPE;
-	memcpy(mess.mtext, &id, sizeof(int));
+	//// memcpy(mess.mtext, &id, sizeof(int));
+	to_string(id).copy(mess.mtext, to_string(id).size());
+	cout << "I will send a message of " << mess.mtext << endl;
 	msgsnd(upQueue, &mess, sizeof(mess.mtext), !IPC_NOWAIT);
-
+	cout << "sent to the queue successfully" << endl;
 	mess.mtype = id;
 	while (!input.empty()) {
 		if (processClock >= input[0].time) {
@@ -86,5 +95,22 @@ int main(int argc, char*argv[]) {
 			input.erase(input.begin());
 		}
 	}
+	sendDeadStatus();
+}
 
+
+void sendDeadStatus(){
+	message msg;
+	msg.mtype = DEAD_MTYPE;
+	to_string(id).copy(msgBuffer.message, to_string(id).size());
+	bool isError = msgsnd(upQueId, &msg, sizeof(msg.message), !IPC_NOWAIT) == -1;
+	if (isError) {
+		cout << "can't send dead status" << endl;
+		exit(-1);
+	}
+	cout << "my id is sent to the queue" << endl;
+}
+
+void setFakeInput(){
+	//input.push_back(message())
 }

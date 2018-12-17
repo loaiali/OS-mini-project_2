@@ -51,12 +51,12 @@ void clkSendAll() {
 	    ret = kill(diskId, SIGUSR2);
 	    printLineError(ret == -1, "can't send SIGUSR2 to disk process");
     }
-	for (auto const & p : liveProcesses)
-	{
+	for (auto const & p : liveProcesses){
 		if (!p.second) continue;
 		long id = p.first;
+		cout << id << endl;
 		ret = kill(id, SIGUSR2);
-		printLineError(ret == -1, "can't send SIGUSR2 to disk process");
+		printLineError(ret == -1, "can't send SIGUSR2 to process of id = " + to_string(id));
 	}
 }
 
@@ -108,6 +108,7 @@ void kernalOneClk() {
 		cout << "no process message in the clk" << endl;;
 	}
 	else if (receivedMessage.mtype == BORN_MTYPE) {
+		cout << "message is " << receivedMessage.message << endl;
 		cout << "A new process is born";
 		long newProcessId = stol(receivedMessage.message);
 		cout << " (Id = " << newProcessId << ")" << endl;
