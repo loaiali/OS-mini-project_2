@@ -1,0 +1,15 @@
+2 ADD hello
+3 ADD loai3
+4 ADD loai4
+4 ADD loai5
+4 ADD loai6
+4 ADD loai7
+4 ADD loai8
+4 ADD loai9
+4 ADD loai10
+4 ADD loai11
+4 ADD loai12
+4 ADD loai13
+5 Del 1
+6 Del 9
+7 ADD loai13

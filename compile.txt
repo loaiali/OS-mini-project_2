@@ -1,0 +1,1 @@
+g++ disk.cpp -std=c++11 -o disk.out

@@ -19,6 +19,7 @@ using namespace std;
 int ctoi(char num);
 void printLineError(bool error, string messageIfError);
 void handleDelete(int signalnum);
+bool isFree(char* status, int size);
 
 struct MessageBuffer {
 	long mtype;
@@ -38,6 +39,8 @@ struct ProcessRequest {
 const long BORN_MTYPE = 1;
 const long STATUS_MTYPE = 2;
 const long NORMAL_MTYPE = 3;
+const long TERMINATE_MTYPE = 6;
+
 int downQueId_process, upQueId_process, downQueId_disk, upQueId_disk;
 int diskId = -1;
 int clk = 0;
@@ -54,7 +57,7 @@ void clkSendAll() {
 	for (auto const & p : liveProcesses){
 		if (!p.second) continue;
 		long id = p.first;
-		cout << id << endl;
+		cout << "killing process " << id << endl;
 		ret = kill(id, SIGUSR2);
 		printLineError(ret == -1, "can't send SIGUSR2 to process of id = " + to_string(id));
 	}
@@ -91,13 +94,6 @@ void kernalOneClk() {
 		cout << "sent success\n";
 	}
 
-
-    if(clk == 20){
-        // simulate the process
-
-        return;
-    }
-
 	// try to recieve a message from any processes
 	bytes = msgrcv(upQueId_process, &receivedMessage, sizeof(receivedMessage.message), 0, IPC_NOWAIT);
 	if (bytes == -1) {
@@ -115,6 +111,17 @@ void kernalOneClk() {
 		//? should i call here incClk for this process
 		liveProcesses[newProcessId] = true;
 	}
+	else if (receivedMessage.mtype == TERMINATE_MTYPE) {
+		cout << "message is " << receivedMessage.message << endl;
+		cout << "A process is dead";
+		long deadProcessId = stol(receivedMessage.message);
+		cout << " (Id = " << deadProcessId << ")" << endl;
+		liveProcesses[deadProcessId] = false;
+		receivedMessage.mtype = deadProcessId;
+		isError = msgsnd(downQueId_process, &receivedMessage, sizeof(receivedMessage.message), !IPC_NOWAIT) == -1;
+		printLineError(isError, "can't send data to process");
+		
+	}
 	else {
 		// there is a command in this clk
 		cout << "command found from " << receivedMessage.mtype << ": " << receivedMessage.message;
@@ -124,27 +131,32 @@ void kernalOneClk() {
 		MessageBuffer statusMessageBfr; statusMessageBfr.mtype = STATUS_MTYPE;
 		bool isError = msgrcv(upQueId_disk, &statusMessageBfr, sizeof(statusMessageBfr.message), STATUS_MTYPE, !IPC_NOWAIT) == -1;
 		printLineError(isError, "can't recieve disk status");
-		int freeSlots = stoi(statusMessageBfr.message);
+		////int freeSlots = stoi(statusMessageBfr.message);
 		char operation = receivedMessage.message[0];
-		if (freeSlots == 0 && operation == 'A') {
+		if (!isFree(statusMessageBfr.message, 10) && operation == 'A') {
 			// add to full disk, send unsucessful add
+			cout << "Add operation invalid" << endl;
 			receivedMessage.message[0] = '2';
 			isError = msgsnd(downQueId_process, &receivedMessage, sizeof(receivedMessage.message), !IPC_NOWAIT) == -1;
 			printLineError(isError, "can't send feedback to the process queue");
 		}
-		else if (freeSlots == 10 && receivedMessage.message[0] == 'D') {
-			// del from empty disk, send unsucessful del
+		else if (receivedMessage.message[0] == 'D' && statusMessageBfr.message[ctoi(receivedMessage.message[1])] == '1') {
+			// del slot is already empty disk, send unsuccessfully del
 			receivedMessage.message[0] = '3';
 			isError = msgsnd(downQueId_process, &receivedMessage, sizeof(receivedMessage.message), !IPC_NOWAIT) == -1;
 			printLineError(isError, "can't send feedback to the process queue");
 		}
 		else if (operation == 'A') {
+			cout << "Add operation found" << endl;
 			requests.push(ProcessRequest(receivedMessage.mtype, 'A'));
+			
 			receivedMessage.mtype = 1; // 1 is add
 			isError = msgsnd(downQueId_disk, &receivedMessage, sizeof(receivedMessage.message), !IPC_NOWAIT) == -1;
 			printLineError(isError, "can't send command add to the disk queue");
 		}
 		else if (operation == 'D') {
+			cout << "Del operation found" << endl;
+			requests.push(ProcessRequest(receivedMessage.mtype, 'D'));
 			receivedMessage.mtype = 2; // 2 is del
 			isError = msgsnd(downQueId_disk, &receivedMessage, sizeof(receivedMessage.message), !IPC_NOWAIT) == -1;
 			printLineError(isError, "can't send command del to the disk queue");
@@ -204,4 +216,10 @@ void printLineError(bool error, string messageIfError) {
 
 int ctoi(char num) {
 	return stoi(string(1, num));
+}
+
+bool isFree(char* status, int size){
+	for(int i = 0; i < size;i++)
+		if(status[i] == '1') return true;
+	return false;
 }

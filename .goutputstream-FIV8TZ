@@ -1,0 +1,4 @@
+cd /media/sf_OS-mini-project_2
+g++ disk.cpp -o disk
+g++ process.cpp -o process
+g++ kernal.cpp -o kernal

@@ -41,22 +41,25 @@ struct Disk{
 	string* slots;
 	bool* freeSlots;
     int clk = 0;
+	char operationServing;
 
 	Disk() : addLatency(3), deleteLatency(1) {
 		this->clk = 0;
 		operationReminder = 0;
 		slots = new string[SLOTS_NUM];
 		freeSlots = new bool[SLOTS_NUM];
+		for(int i =0; i< SLOTS_NUM; i++)
+			freeSlots[i] = true;
 	}
 
 	void inc() {
 		clk += 1;
 		if (operationReminder == 1) {
-			cout << "added successfully" << endl;
-			cout << "sending to up queue the feedback" << endl;
+			cout << "operation success" << endl;
+			cout << "sending to up queue the feedback: " << operationServing << endl;
 			MessageBuffer msgBuffer;
 			msgBuffer.mtype = NORMAL_MTYPE;
-			msgBuffer.message[0] = '1';
+			msgBuffer.message[0] = operationServing;
 			bool isError = msgsnd(upQueId, &msgBuffer, sizeof(msgBuffer.message), !IPC_NOWAIT) == -1;
 			if (isError) {
 				cout << "can't send feedback" << endl;
@@ -95,6 +98,7 @@ struct Disk{
 				slots[i] = message;
 				freeSlots[i] = false;
 				cout << "message '" << message << "' is being written in the disk in slot #" << i << endl;
+				operationServing = '0'; // feedback that will be sent to kernal
 				operationReminder = addLatency;
 				return true;
 			}
@@ -110,6 +114,7 @@ struct Disk{
 		freeSlots[slot] = true;
 		cout << "message ' " << slots[slot] << "' in slot #" << slot << " is being deleted" << endl;
 		operationReminder = deleteLatency;
+		operationServing = '1'; // feedback that will be sent to kernal
 	}
 private:
 	const int addLatency = 3, deleteLatency = 1;
@@ -127,7 +132,7 @@ void handleClk(int signalnum) {
 
 void handleMessage(char* message, int size) {
 	char op = message[0];
-	char* actualMes = &message[2];
+	char* actualMes = &message[1];
 	if (op == 'A') {
 		disk.add(actualMes);
 	}
@@ -142,10 +147,13 @@ void handleMessage(char* message, int size) {
 
 void handleStatus(int signalnum) {
 	cout << "handleStatus\n";
-	string num = to_string(disk.countFreeSlots());
+	// string num = to_string(disk.countFreeSlots());
+	string status = disk.diskStatus();
+	cout << "Number of free slots is " << disk.countFreeSlots() << endl;
+	cout << "Status of disk is: " << status << endl;
 	MessageBuffer msgBuffer;
 	msgBuffer.mtype = STATUS_MTYPE;
-	num.copy(msgBuffer.message, 64);
+	status.copy(msgBuffer.message, 64);
 	bool isError = msgsnd(upQueId, &msgBuffer, sizeof(msgBuffer.message), !IPC_NOWAIT) == -1;
 	if (isError) {
 		cout << "can't send status to the caller";
@@ -211,5 +219,6 @@ void printLineError(bool error, string messageIfError) {
 }
 
 int ctoi(char num) {
+	cout << "[ctoi]: " << num << " is sent" << endl << string(1, num) << endl;
 	return stoi(string(1, num));
 }
